@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build / packaged extension
+dist/
+*.zip
+
+# Secrets & local config (运行时凭据本就只在 chrome.storage，这里挡住开发/测试用的)
+.env
+.env.local
+*.local
+
+# Internal design docs — kept local, not published
+docs/
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-error.log*

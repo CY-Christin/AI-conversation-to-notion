@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "AI Chat → Notion Sync (dev)",
+  "version": "0.0.1",
+  "description": "Archive AI conversations to Notion. M1: Claude capture pipeline (no Notion writes yet).",
+  "permissions": ["storage"],
+  "host_permissions": ["https://claude.ai/*"],
+  "background": {
+    "service_worker": "src/background/service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://claude.ai/*"],
+      "js": ["src/content/bridge.js"],
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    },
+    {
+      "matches": ["https://claude.ai/*"],
+      "js": ["src/inject/main-world.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ]
+}
