@@ -10,6 +10,10 @@ dist/
 .env.local
 *.local
 src/background/local-config.js
+worker/wrangler.toml
+
+# Wrangler local state/cache
+.wrangler/
 
 # Internal design docs — kept local, not published
 docs/

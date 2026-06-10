@@ -124,10 +124,26 @@ function messageTags(m) {
     .join(' ');
 }
 
+const convLocks = new Map(); // convId → tail promise
+
+// Run fn after any in-flight work for this conversation finishes. Different
+// conversations use different locks, so they still run in parallel; only
+// overlapping triggers for the SAME conversation (e.g. completion + URL switch)
+// are serialized — preventing a sink's read-modify-write from racing itself.
+function withConvLock(convId, fn) {
+  const next = (convLocks.get(convId) || Promise.resolve()).then(fn, fn);
+  convLocks.set(convId, next.catch(() => {}));
+  return next;
+}
+
 async function handleConversation(platform, raw) {
   const normalize = NORMALIZERS[platform];
   if (!normalize) return;
   const conv = normalize(raw);
+  return withConvLock(conv.id, () => runConversationSync(conv));
+}
+
+async function runConversationSync(conv) {
   const turns = conv.messages.filter((m) => m.role === 'assistant').length;
 
   console.groupCollapsed(
