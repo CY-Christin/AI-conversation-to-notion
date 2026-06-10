@@ -29,19 +29,36 @@ async function getActiveSinks() {
 }
 
 // ---- Claude normalize (per-platform; will move into an adapter later) --------
-function collectFiles(m) {
-  const out = [];
-  const push = (arr, kind) => {
-    if (Array.isArray(arr)) {
-      for (const f of arr) {
-        out.push({ name: f.file_name || f.name || f.title || '(file)', kind });
-      }
+function basename(p) {
+  return String(p || '').split('/').pop() || String(p || '');
+}
+
+// Extract file refs WITH content from a message. Two sources carry real content:
+//  - uploaded files:  attachments[].extracted_content
+//  - AI-created files: content[].tool_use[create_file].input.file_text
+// present_files / local_resource are display-only pointers (no content) and are
+// usually copies of already-captured files, so we skip them to avoid duplicates.
+function collectFileRefs(m) {
+  const refs = [];
+  for (const a of m.attachments || []) {
+    refs.push({
+      name: a.file_name || '(file)',
+      content: a.extracted_content ?? null,
+      mime: a.file_type || null,
+      source: 'upload',
+    });
+  }
+  for (const c of m.content || []) {
+    if (c.type === 'tool_use' && c.name === 'create_file' && c.input) {
+      refs.push({
+        name: basename(c.input.path),
+        content: c.input.file_text ?? null,
+        path: c.input.path || null,
+        source: 'created',
+      });
     }
-  };
-  push(m.attachments, 'attachment');
-  push(m.files, 'file');
-  push(m.files_v2, 'file');
-  return out;
+  }
+  return refs;
 }
 
 function normalizeClaude(raw) {
@@ -70,7 +87,7 @@ function normalizeClaude(raw) {
       text: segments.filter((s) => s.kind === 'text').map((s) => s.text).join(''),
       thinking: segments.filter((s) => s.kind === 'thinking').map((s) => s.text),
       tools: segments.filter((s) => s.kind === 'tool_use' || s.kind === 'tool_result'),
-      files: collectFiles(m),
+      files: collectFileRefs(m),
     };
   });
 
@@ -97,7 +114,11 @@ function messageTags(m) {
   return [
     m.thinking.length ? `thinking×${m.thinking.length}` : '',
     m.tools.length ? `tools×${m.tools.length}` : '',
-    m.files.length ? `files:[${m.files.map((f) => f.name).join(', ')}]` : '',
+    m.files.length
+      ? `files:[${m.files
+          .map((f) => `${f.name}<${f.source},${f.content ? f.content.length + 'ch' : 'NO-CONTENT'}>`)
+          .join(', ')}]`
+      : '',
   ]
     .filter(Boolean)
     .join(' ');

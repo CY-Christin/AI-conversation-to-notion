@@ -265,6 +265,18 @@ async function appendInBatches(token, pageId, blocks) {
   }
 }
 
+// Create a child page (under the conversation page) holding a file's markdown.
+// Created right after its message body is appended, so Notion places it in the
+// conversation flow at the correct position — no extra back-link needed.
+async function createFileChildPage(token, parentPageId, file) {
+  const page = await napi(token, '/pages', 'POST', {
+    parent: { type: 'page_id', page_id: parentPageId },
+    properties: { title: { title: [{ text: { content: file.name || '(file)' } }] } },
+  });
+  await appendInBatches(token, page.id, mdBlocks(file.content));
+  return page.id;
+}
+
 // ---- sink ------------------------------------------------------------------
 // Writes fresh (not-yet-synced) messages. Returns ids that were successfully
 // written, so the caller marks them synced only after a durable write.
@@ -277,6 +289,10 @@ async function sync(config, conv, alreadySynced) {
   for (const m of conv.messages) {
     if (alreadySynced.has(m.id)) continue;
     await appendInBatches(config.token, pageId, buildMessageBlocks(m));
+    // md files → child pages, appended right after this message's body.
+    for (const f of m.files || []) {
+      if (f.content) await createFileChildPage(config.token, pageId, f);
+    }
     newlySynced.push(m.id); // per-message durability boundary
   }
   return { newlySynced, ref: pageId };
